@@ -1,1 +1,1 @@
-# AI_Scholarship_Wrapper
+# AI Scholarship Wrapper
