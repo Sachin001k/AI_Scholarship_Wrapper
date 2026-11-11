@@ -31,7 +31,8 @@ npm run dev                    # http://localhost:3000
 2. **Create the tables (required, one time).** Without them the site still works for guests, using bundled data, but signed-in sync fails. Pick one option:
    - **Dashboard (easiest):** open Supabase → **SQL Editor** → New query.
      1. Paste all of `supabase/migrations/20261111000000_init.sql` and click **Run**.
-     2. Then paste `supabase/seed.sql` and click **Run**.
+     2. Paste `supabase/migrations/20261111000100_grants.sql` and click **Run**. New Supabase projects don't grant table access to the API roles automatically; without this every read fails with `permission denied (42501)`.
+     3. Then paste `supabase/seed.sql` and click **Run**.
    - **CLI:** the CLI must be logged into the account that owns the project.
      ```bash
      supabase login
