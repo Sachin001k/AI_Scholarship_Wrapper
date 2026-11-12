@@ -1,116 +1,219 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens — calm, one brand colour, light + dark.
+ * Classes use these names: bg-page, bg-surface, bg-subtle, border-line, text-ink,
+ * text-muted, text-brand, bg-brand-solid, bg-brand-soft, text-ok, bg-ok-soft …
+ * Values live in CSS variables below and switch with <html data-theme="dark">.
+ */
 @theme inline {
   --font-sans: var(--font-body);
-  --font-display: var(--font-heading);
-  --color-ink: #05060f;
-  --color-panel: rgb(255 255 255 / 0.04);
-  --color-line: rgb(255 255 255 / 0.09);
-  --color-muted: #9ca3c7;
-  --color-violet: #8b5cf6;
-  --color-cyan: #22d3ee;
-  --color-lime: #a3e635;
-  --color-gold: #facc15;
-  --color-ok: #34d399;
-  --color-warn: #fbbf24;
-  --color-miss: #fb7185;
+
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+
+  --color-brand: var(--brand);
+  --color-brand-solid: var(--brand-solid);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-miss: var(--miss);
+  --color-miss-soft: var(--miss-soft);
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+  --page: #f8fafc;
+  --surface: #ffffff;
+  --subtle: #f1f5f9;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --brand: #1d4ed8; /* text + accents */
+  --brand-solid: #1d4ed8; /* button fills (white text on top) */
+  --brand-hover: #1e40af;
+  --brand-soft: #eff6ff;
+  --brand-ink: #1e3a8a;
+  --ok: #15803d;
+  --ok-soft: #f0fdf4;
+  --warn: #b45309;
+  --warn-soft: #fffbeb;
+  --miss: #b91c1c;
+  --miss-soft: #fef2f2;
+  --placeholder: #94a3b8;
+  --selection: #dbeafe;
 }
 
-html {
-  scroll-behavior: smooth;
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0b1120;
+  --surface: #111827;
+  --subtle: #1e293b;
+  --line: #1f2b3d;
+  --line-strong: #334155;
+  --ink: #e5e7eb;
+  --muted: #94a3b8;
+  --brand: #60a5fa;
+  --brand-solid: #2563eb;
+  --brand-hover: #1d4ed8;
+  --brand-soft: #172554;
+  --brand-ink: #bfdbfe;
+  --ok: #4ade80;
+  --ok-soft: #052e16;
+  --warn: #fbbf24;
+  --warn-soft: #3b2506;
+  --miss: #f87171;
+  --miss-soft: #3f0d0d;
+  --placeholder: #64748b;
+  --selection: #1e3a8a;
 }
 
 body {
-  background: var(--color-ink);
-  color: #eef0ff;
+  background: var(--color-page);
+  color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgb(139 92 246 / 0.45);
+  background: var(--selection);
 }
 
-/* Aurora background used on every page (cheap: pure CSS). */
-.aurora {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  pointer-events: none;
-  background:
-    radial-gradient(60rem 40rem at 10% -10%, rgb(124 58 237 / 0.22), transparent 60%),
-    radial-gradient(50rem 35rem at 100% 0%, rgb(34 211 238 / 0.14), transparent 60%),
-    radial-gradient(40rem 30rem at 50% 110%, rgb(163 230 53 / 0.08), transparent 60%),
-    var(--color-ink);
-}
-.aurora::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
-  background-size: 28px 28px;
-  mask-image: linear-gradient(to bottom, black, transparent 70%);
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
-.glass {
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0.025));
-  border: 1px solid var(--color-line);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
+/* ---------- Reusable components ----------
+ * Inside @layer components so Tailwind utilities (hidden, w-full, …) can override them. */
+@layer components {
 
-.text-gradient {
-  background: linear-gradient(100deg, #c4b5fd 0%, #22d3ee 45%, #a3e635 90%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.btn-primary {
-  position: relative;
-  background: linear-gradient(100deg, #7c3aed, #2563eb 55%, #0891b2);
-  box-shadow: 0 10px 40px -10px rgb(124 58 237 / 0.7), inset 0 1px 0 rgb(255 255 255 / 0.25);
-}
-.btn-primary::before {
-  content: "";
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  background: linear-gradient(100deg, #a78bfa, #22d3ee, #a3e635, #a78bfa);
-  background-size: 300% 100%;
-  z-index: -1;
-  filter: blur(10px);
-  opacity: 0;
-  transition: opacity 0.3s;
-  animation: shimmer 4s linear infinite;
-}
-.btn-primary:hover::before {
-  opacity: 0.8;
-}
-
-@keyframes shimmer {
-  to {
-    background-position: -300% 0;
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 14px;
   }
-}
-
-@keyframes marquee {
-  to {
-    transform: translateX(-50%);
+  .card-link {
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
-}
-.animate-marquee {
-  animation: marquee 40s linear infinite;
-}
+  .card-link:hover {
+    border-color: var(--color-line-strong);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 16px rgb(15 23 42 / 0.06);
+  }
 
-/* Thin custom scrollbars */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgb(255 255 255 / 0.15) transparent;
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 10px;
+    padding: 0.625rem 1.125rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.25rem;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-lg {
+    padding: 0.875rem 1.5rem;
+    font-size: 1rem;
+  }
+  .btn-primary {
+    background: var(--color-brand-solid);
+    color: #fff;
+  }
+  .btn-primary:not(:disabled):hover {
+    background: var(--color-brand-hover);
+  }
+  .btn-secondary {
+    background: var(--color-surface);
+    color: var(--color-ink);
+    border: 1px solid var(--color-line);
+  }
+  .btn-secondary:not(:disabled):hover {
+    background: var(--color-subtle);
+  }
+  .btn-ghost {
+    color: var(--color-muted);
+  }
+  .btn-ghost:not(:disabled):hover {
+    color: var(--color-ink);
+    background: var(--color-subtle);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border: 1px solid var(--color-line);
+    background: var(--color-surface);
+    border-radius: 999px;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+    color: var(--color-ink);
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+  .chip:hover {
+    border-color: var(--color-line-strong);
+  }
+  .chip[aria-pressed="true"] {
+    border-color: var(--color-brand-solid);
+    background: var(--color-brand-soft);
+    color: var(--color-brand-ink);
+    font-weight: 500;
+  }
+
+  .input {
+    width: 100%;
+    border: 1px solid var(--color-line);
+    background: var(--color-surface);
+    border-radius: 10px;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.9375rem;
+    color: var(--color-ink);
+  }
+  .input::placeholder {
+    color: var(--placeholder);
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-brand-solid);
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.2);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1rem;
+  }
+
+  .eyebrow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -118,14 +221,6 @@ body {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
-}
-
-:focus-visible {
-  outline: 2px solid #22d3ee;
-  outline-offset: 2px;
-  border-radius: 6px;
 }

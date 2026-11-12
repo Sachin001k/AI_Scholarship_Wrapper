@@ -9,8 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Scholarships, programs and education loans that fit you.",
     start_url: "/matches",
     display: "standalone",
-    background_color: "#05060f",
-    theme_color: "#05060f",
+    background_color: "#f8fafc",
+    theme_color: "#ffffff",
     icons: [
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml" },
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" },

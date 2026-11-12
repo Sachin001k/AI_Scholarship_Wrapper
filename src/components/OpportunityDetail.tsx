@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, CalendarClock, FileText, Flag, Footprints, Landmark, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import type { Opportunity, University } from "@/lib/domain/types";
-import { FIELD_LABEL, LEVEL_LABEL, countryName, flag } from "@/lib/domain/reference";
+import { FIELD_LABEL, LEVEL_LABEL, countryName } from "@/lib/domain/reference";
 import { formatDeadline, formatMoney } from "@/lib/domain/values";
 import { BASIS_LABEL, DeadlineChip, SampleBadge, SaveButton } from "@/components/ui/opportunity";
 import YourEligibility from "@/components/YourEligibility";
@@ -21,149 +21,127 @@ export default function OpportunityDetail({ o, universities }: { o: Opportunity;
     ...(value ? { amount: { "@type": "MonetaryAmount", value: value.amount, currency: value.currency } } : {}),
   };
 
+  const facts: [string, React.ReactNode][] = [
+    [o.kind === "LOAN" ? "Borrow up to" : "Worth (approx.)", value ? formatMoney(value) : "Varies"],
+    [
+      "Deadline",
+      o.deadline.kind === "ROLLING" ? (
+        "Apply anytime"
+      ) : (
+        <>
+          {formatDeadline(o.deadline, o.deadline.zone)} <DeadlineChip deadline={o.deadline} />
+        </>
+      ),
+    ],
+    o.loanTerms
+      ? ["Interest", `${o.loanTerms.rateMinPct}–${o.loanTerms.rateMaxPct}% a year`]
+      : ["Study in", o.hostCountries.includes("*") ? "Any country" : o.hostCountries.map(countryName).join(", ")],
+  ];
+
+  const who: [string, string][] = [
+    ["Nationality", o.nationalitiesIn.includes("*") ? "Any" : o.nationalitiesIn.map(countryName).join(", ")],
+    ["Level", o.levels.map((l) => LEVEL_LABEL[l]).join(", ")],
+    ["Subjects", o.fields.includes("*") ? "All subjects" : o.fields.map((f) => FIELD_LABEL[f]).join(", ")],
+  ];
+  if (o.loanTerms) {
+    who.push(["Cosigner / collateral", `${o.loanTerms.cosignerRequired ? "Cosigner needed" : "No cosigner"} · ${o.loanTerms.collateralRequired ? "collateral needed" : "no collateral"}`]);
+    who.push(["Repayment starts", `${o.loanTerms.gracePeriodMonths} months after your course`]);
+  }
+
   return (
-    <article className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+    <article className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <Link href="/explore" className="inline-flex items-center gap-1 text-sm text-muted hover:text-white">
-        <ArrowLeft className="h-4 w-4" /> All funding
+      <Link href="/explore" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
+        <ArrowLeft className="h-4 w-4" /> All scholarships & loans
       </Link>
 
-      <header className="glass relative mt-4 overflow-hidden rounded-[2rem] p-6 sm:p-10">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full blur-3xl" style={{ background: o.kind === "LOAN" ? "rgb(34 211 238 / 0.25)" : "rgb(139 92 246 / 0.3)" }} />
-        <div className="relative flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-white/10 px-3 py-1">{o.kind === "LOAN" ? "Education loan" : BASIS_LABEL[o.basis ?? ""] ?? "Scholarship"}</span>
-          {o.sample && <SampleBadge />}
-        </div>
-        <div className="relative mt-4 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-          <div className="max-w-3xl">
-            <h1 className="font-display text-3xl font-bold leading-tight sm:text-5xl">{o.title}</h1>
-            <p className="mt-3 text-muted">
-              {flag(o.provider.country)} {o.provider.name}
-            </p>
-            <p className="mt-5 text-lg text-white/85">{o.description}</p>
+      <header className="mt-6 flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-sm text-muted">
+            {o.kind === "LOAN" ? "Education loan" : (BASIS_LABEL[o.basis ?? ""] ?? "Scholarship")}
+            {o.sample && <SampleBadge />}
           </div>
-          <SaveButton o={o} className="h-12 w-12 shrink-0" />
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{o.title}</h1>
+          <p className="mt-2 text-muted">{o.provider.name}</p>
         </div>
-        <div className="relative mt-8 grid gap-4 sm:grid-cols-3">
-          <Fact label={o.kind === "LOAN" ? "Borrow up to" : "Worth (approx.)"} value={value ? formatMoney(value) : "Varies"} sub={o.award?.coverage} />
-          {o.loanTerms ? (
-            <Fact
-              label="Interest rate"
-              value={`${o.loanTerms.rateMinPct}–${o.loanTerms.rateMaxPct}%`}
-              sub={[o.loanTerms.cosignerRequired ? "Cosigner needed" : "No cosigner", o.loanTerms.collateralRequired ? "collateral needed" : "no collateral"].join(" · ")}
-            />
-          ) : (
-            <Fact label="Study in" value={o.hostCountries.includes("*") ? "Any country" : o.hostCountries.map(countryName).join(", ")} />
-          )}
-          <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-            <p className="text-xs uppercase tracking-wider text-muted">Deadline</p>
-            <p className="mt-1 font-semibold">{o.deadline.kind === "ROLLING" ? "Rolling" : formatDeadline(o.deadline, o.deadline.zone)}</p>
-            <p className="mt-1 text-xs text-muted">
-              {o.deadline.kind === "FIXED" && <>Provider time ({o.deadline.zone}) · </>}
-              <DeadlineChip deadline={o.deadline} />
-            </p>
-          </div>
-        </div>
+        <SaveButton o={o} className="mt-1 border border-line" />
       </header>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_380px]">
-        <div className="space-y-6">
-          <Section icon={Flag} title="Who can apply">
-            <ul className="grid gap-2 text-sm sm:grid-cols-2">
-              <Li k="Nationality" v={o.nationalitiesIn.includes("*") ? "Any nationality" : o.nationalitiesIn.map(countryName).join(", ")} />
-              <Li k="Level" v={o.levels.map((l) => LEVEL_LABEL[l]).join(", ")} />
-              <Li k="Subjects" v={o.fields.includes("*") ? "All subjects" : o.fields.map((f) => FIELD_LABEL[f]).join(", ")} />
-              {o.loanTerms && <Li k="Grace period" v={`${o.loanTerms.gracePeriodMonths} months after course`} />}
-              {o.loanTerms && <Li k="International students" v={o.loanTerms.internationalStudents ? "Yes" : "No"} />}
-            </ul>
-          </Section>
-          <Section icon={FileText} title="Documents you'll need">
-            <ul className="space-y-2 text-sm">
-              {o.documents.map((d) => (
-                <li key={d} className="flex gap-2"><span className="text-cyan">•</span> {d}</li>
+      <dl className="mt-8 grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-3">
+        {facts.map(([k, v]) => (
+          <div key={k} className="bg-surface p-4">
+            <dt className="eyebrow">{k}</dt>
+            <dd className="mt-1 font-semibold">{v}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-8">
+          <section>
+            <h2 className="text-lg font-semibold">About</h2>
+            <p className="mt-2 leading-relaxed text-ink/80">{o.description}</p>
+            {o.award?.coverage && <p className="mt-2 text-sm text-muted">Covers: {o.award.coverage}</p>}
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold">Who can apply</h2>
+            <dl className="mt-3 divide-y divide-line rounded-xl border border-line bg-surface">
+              {who.map(([k, v]) => (
+                <div key={k} className="grid gap-1 p-4 text-sm sm:grid-cols-[10rem_1fr]">
+                  <dt className="text-muted">{k}</dt>
+                  <dd>{v}</dd>
+                </div>
               ))}
-            </ul>
-          </Section>
-          <Section icon={Footprints} title="How to apply">
-            <ol className="space-y-3">
+            </dl>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold">How to apply</h2>
+            <ol className="mt-3 space-y-2 text-sm">
               {o.steps.map((s, i) => (
-                <li key={s} className="flex gap-3 text-sm">
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-violet to-cyan text-xs font-bold">{i + 1}</span>
+                <li key={s} className="flex gap-3">
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-subtle text-xs font-semibold">{i + 1}</span>
                   <span className="pt-0.5">{s}</span>
                 </li>
               ))}
             </ol>
-          </Section>
+            <p className="mt-5 text-sm font-medium">Documents you&apos;ll usually need</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink/80">
+              {o.documents.map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          </section>
+
           {linkedUnis.length > 0 && (
-            <Section icon={Landmark} title="Linked universities">
-              <div className="flex flex-wrap gap-2">
+            <section>
+              <h2 className="text-lg font-semibold">Universities</h2>
+              <div className="mt-3 flex flex-wrap gap-2">
                 {linkedUnis.map((u) => (
-                  <Link key={u.id} href={`/universities/${u.slug}`} className="rounded-full bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 hover:bg-white/10">
-                    {flag(u.country)} {u.name}
+                  <Link key={u.id} href={`/universities/${u.slug}`} className="chip">
+                    {u.name}
                   </Link>
                 ))}
               </div>
-            </Section>
+            </section>
           )}
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <YourEligibility o={o} />
-          <a
-            href={o.officialUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-primary flex items-center justify-center gap-2 rounded-2xl px-6 py-4 font-semibold text-white"
-          >
-            Apply on the official site <ArrowUpRight className="h-5 w-5" />
+          <a href={o.officialUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-lg w-full">
+            Apply on official site <ArrowUpRight className="h-4 w-4" />
           </a>
-          <div className="glass space-y-2 rounded-2xl p-4 text-xs text-muted">
-            <p className="flex items-center gap-2">
-              <CalendarClock className="h-4 w-4" />
-              {o.lastVerifiedAt ? `Last verified ${o.lastVerifiedAt}` : "Not yet verified by our team — check the official page."}
-            </p>
-            <p className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-ok" /> Official link opens the provider&apos;s own website.
-            </p>
-            <a
-              href={`mailto:hello@example.com?subject=${encodeURIComponent(`Incorrect info: ${o.title}`)}`}
-              className="inline-block pt-1 text-cyan hover:underline"
-            >
-              Report incorrect information
+          <p className="text-xs text-muted">
+            {o.lastVerifiedAt ? `Last checked ${o.lastVerifiedAt}.` : "Not yet verified by our team."} Details can change — confirm on the
+            official site.{" "}
+            <a href={`mailto:hello@example.com?subject=${encodeURIComponent(`Incorrect info: ${o.title}`)}`} className="text-brand hover:underline">
+              Report a problem
             </a>
-          </div>
+          </p>
         </aside>
       </div>
     </article>
-  );
-}
-
-function Fact({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-      <p className="text-xs uppercase tracking-wider text-muted">{label}</p>
-      <p className="mt-1 font-display text-2xl font-bold text-gradient">{value}</p>
-      {sub && <p className="mt-1 text-xs text-muted">{sub}</p>}
-    </div>
-  );
-}
-
-function Section({ icon: Icon, title, children }: { icon: typeof Flag; title: string; children: React.ReactNode }) {
-  return (
-    <section className="glass rounded-3xl p-6">
-      <h2 className="mb-4 flex items-center gap-2 font-display text-xl font-semibold">
-        <Icon className="h-5 w-5 text-lime" /> {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
-
-function Li({ k, v }: { k: string; v: string }) {
-  return (
-    <li className="rounded-xl bg-white/5 p-3">
-      <span className="block text-xs text-muted">{k}</span>
-      {v}
-    </li>
   );
 }

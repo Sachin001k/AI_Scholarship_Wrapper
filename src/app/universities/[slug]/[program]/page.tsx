@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { getCatalog, getProgram } from "@/lib/catalog/queries";
-import { FIELD_LABEL, LEVEL_LABEL, flag } from "@/lib/domain/reference";
+import { FIELD_LABEL, LEVEL_LABEL } from "@/lib/domain/reference";
 import { formatDeadline, formatMoney } from "@/lib/domain/values";
 import { OpportunityCard } from "@/components/ui/opportunity";
 import { SITE_URL } from "@/lib/site";
@@ -27,6 +27,7 @@ export default async function ProgramPage({ params }: PageProps<"/universities/[
   const { university: u, program: p, linked } = d;
   const c = p.costs.find((x) => x.audience === "INTERNATIONAL") ?? p.costs[0];
   const total = c ? c.tuition.amount + c.fees.amount + c.living.amount : 0;
+  const intake = p.intakes[0];
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "EducationalOccupationalProgram",
@@ -38,77 +39,64 @@ export default async function ProgramPage({ params }: PageProps<"/universities/[
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <Link href={`/universities/${u.slug}`} className="inline-flex items-center gap-1 text-sm text-muted hover:text-white">
+      <Link href={`/universities/${u.slug}`} className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
         <ArrowLeft className="h-4 w-4" /> {u.name}
       </Link>
 
-      <header className="glass relative mt-4 overflow-hidden rounded-[2rem] p-6 sm:p-10">
-        <div className="pointer-events-none absolute -right-20 -top-20 h-80 w-80 rounded-full opacity-40 blur-3xl" style={{ background: u.accent }} />
-        <div className="relative flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full bg-violet/30 px-2.5 py-1">{LEVEL_LABEL[p.level]}</span>
-          <span className="rounded-full bg-white/10 px-2.5 py-1">{FIELD_LABEL[p.field]}</span>
-          <span className="rounded-full bg-white/10 px-2.5 py-1">{p.durationMonths} months</span>
-        </div>
-        <h1 className="relative mt-4 font-display text-3xl font-bold sm:text-5xl">{p.name}</h1>
-        <p className="relative mt-2 text-muted">
-          {flag(u.country)} {u.name} · {u.city}
+      <header className="mt-6">
+        <p className="text-sm text-muted">
+          {LEVEL_LABEL[p.level]} · {FIELD_LABEL[p.field]} · {p.durationMonths} months
         </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">{p.name}</h1>
+        <p className="mt-1 text-muted">{u.name}</p>
       </header>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
+      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-8">
           {c && (
-            <section className="glass rounded-3xl p-6">
-              <h2 className="font-display text-xl font-semibold">Cost of attendance ({c.academicYear}, international)</h2>
-              <div className="mt-5 space-y-3">
-                {([["Tuition", c.tuition, "#8b5cf6"], ["Fees", c.fees, "#22d3ee"], ["Living", c.living, "#a3e635"]] as const).map(([k, m, col]) => (
-                  <div key={k}>
-                    <div className="flex justify-between text-sm">
-                      <span>{k}</span>
-                      <span className="font-semibold">{formatMoney(m)}</span>
-                    </div>
-                    <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/10">
-                      <div className="h-full rounded-full" style={{ width: `${total ? (m.amount / total) * 100 : 0}%`, background: col }} />
-                    </div>
+            <section>
+              <h2 className="text-lg font-semibold">Cost per year</h2>
+              <p className="text-sm text-muted">International students, {c.academicYear}</p>
+              <dl className="mt-3 divide-y divide-line rounded-xl border border-line bg-surface text-sm">
+                {([["Tuition", c.tuition], ["Fees", c.fees], ["Living costs (estimate)", c.living]] as const).map(([k, m]) => (
+                  <div key={k} className="flex justify-between p-4">
+                    <dt className="text-muted">{k}</dt>
+                    <dd>{formatMoney(m)}</dd>
                   </div>
                 ))}
-                <p className="flex justify-between border-t border-white/10 pt-3 font-display text-lg">
-                  <span>Total per year</span>
-                  <span className="text-gradient font-bold">{formatMoney({ amount: total, currency: c.tuition.currency })}</span>
-                </p>
-              </div>
+                <div className="flex justify-between p-4 font-semibold">
+                  <dt>Total</dt>
+                  <dd>{formatMoney({ amount: total, currency: c.tuition.currency })}</dd>
+                </div>
+              </dl>
             </section>
           )}
-          <section className="glass rounded-3xl p-6">
-            <h2 className="font-display text-xl font-semibold">Entry requirements</h2>
-            <ul className="mt-4 space-y-2">
+
+          <section>
+            <h2 className="text-lg font-semibold">Entry requirements</h2>
+            <ul className="mt-3 space-y-2 text-sm">
               {p.entryRequirements.map((r) => (
-                <li key={r} className="flex gap-2 text-sm">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> {r}
+                <li key={r} className="flex gap-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> {r}
                 </li>
               ))}
             </ul>
-          </section>
-          <section className="glass rounded-3xl p-6">
-            <h2 className="font-display text-xl font-semibold">Intakes</h2>
-            <ul className="mt-4 space-y-2 text-sm">
-              {p.intakes.map((i) => (
-                <li key={i.term} className="flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-cyan" /> {i.term} · starts {i.startsOn} · apply by{" "}
-                  {i.deadline.kind === "FIXED" ? formatDeadline(i.deadline, i.deadline.zone) : "rolling"}
-                </li>
-              ))}
-            </ul>
+            {intake && (
+              <p className="mt-4 text-sm text-muted">
+                Next intake: {intake.term} (starts {intake.startsOn}) · apply by{" "}
+                {intake.deadline.kind === "FIXED" ? formatDeadline(intake.deadline, intake.deadline.zone) : "rolling"}
+              </p>
+            )}
           </section>
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          <div className="glass rounded-3xl p-6">
-            <h2 className="font-display text-lg font-semibold">How will you pay for it?</h2>
-            <p className="mt-1 text-sm text-muted">See scholarships and loans that can cover this program — in your currency.</p>
-            <Link href={`/plan?program=${encodeURIComponent(p.id)}`} className="btn-primary mt-4 flex items-center justify-center gap-2 rounded-2xl px-5 py-3 font-semibold text-white">
+        <aside className="lg:sticky lg:top-24 lg:self-start">
+          <div className="card p-5">
+            <p className="font-semibold">How will you pay for it?</p>
+            <p className="mt-1 text-sm text-muted">See which scholarships and loans could cover the cost, in your currency.</p>
+            <Link href={`/plan?program=${encodeURIComponent(p.id)}`} className="btn btn-primary mt-4 w-full">
               Build a funding plan <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -117,8 +105,8 @@ export default async function ProgramPage({ params }: PageProps<"/universities/[
 
       {linked.length > 0 && (
         <section className="mt-12">
-          <h2 className="font-display text-2xl font-semibold">Scholarships linked to this program</h2>
-          <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <h2 className="text-lg font-semibold">Scholarships for this program</h2>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {linked.map((o) => (
               <OpportunityCard key={o.id} o={o} />
             ))}

@@ -81,15 +81,23 @@ npm run dev                    # http://localhost:3000
 | 3.9 | Status pipeline (state machine) + per-opportunity document checklist | P1 | ✅ |
 | 3.13 SEO | Public pages, clean URLs, titles/descriptions, sitemap.xml, robots.txt | P0 | ✅ Statically pre-rendered |
 | 3.13 | schema.org structured data (MonetaryGrant, LoanOrCredit, EducationalOccupationalProgram) | P1 | ✅ |
-| 3.15 Reach | Mobile-first, installable (web manifest), low-bandwidth fallback (no 3D on Save-Data / reduced motion) | P0 | ✅ |
+| 3.15 Reach | Mobile-first, installable (web manifest), 3D only on capable devices (CSS fallback on Save-Data / 2G / reduced motion / no WebGL) | P0 | ✅ |
 | 3.16 Trust | Anti-scam notice; Row Level Security on every table | P0 | ✅ |
 
 ### Experience and visuals
-- **3D interactive globe** (three.js via React Three Fiber). Continents are drawn as ~3.6k dots, precomputed from a NASA land mask into 31 KB, with a fresnel glow.
-- The globe follows the pointer, and orbiting coins and a graduation cap float around it.
-- **Live journey arcs:** while a student picks destinations in onboarding, glowing arcs with moving "comets" fly from their home country to each one.
-- Motion design: scroll reveals, count-up numbers, 3D tilt + glare cards, animated tabs, a confetti reveal of first matches, a heart "burst" on save, and an animated funding bar.
-- Dark "aurora" theme with glass surfaces, gradient type (Bricolage Grotesque + Geist), visible focus rings, a skip link, and `prefers-reduced-motion` respected everywhere.
+- **Calm design with light and dark mode** for first-time students and their parents: one deep-blue brand colour, plain cards, the Geist font.
+  - The theme follows the device by default; the sun/moon button in the nav switches it and remembers the choice (`src/lib/theme.ts`).
+  - A tiny script in `<head>` applies the theme before first paint, so dark mode never flashes white.
+- **3D globe in the home hero** (three.js via React Three Fiber, lazy-loaded):
+  - Continents drawn as ~3.6k dots (precomputed into 31 KB from a NASA land mask), with journey arcs and moving dots from India to study destinations.
+  - "Scholar" animation: a graduation cap that bobs and is tossed up with a flip every few seconds, and a floating diploma scroll.
+  - Colours follow the theme (deep-blue dots on a pale sphere in light mode; glowing blue with stars in dark mode).
+- **Less on every screen:**
+  - Home has one message, one main button, three steps and three example scholarships.
+  - Onboarding has 5 short steps. Country lists show a few suggestions plus search, and your current level is inferred from what you're applying for. Money questions are optional and tucked away.
+  - Matches show one headline, three tabs (Eligible / Needs info / Almost), a type filter and at most one tip. Cards show only status, name, provider, amount and deadline; "Why you match" opens on tap.
+- Shared styles live in `src/app/globals.css` (colour tokens plus `card`, `btn`, `chip`, `input`, `badge` classes in Tailwind's components layer).
+- Accessible basics: visible focus rings, a skip link, real checkboxes and labels, and `prefers-reduced-motion` respected.
 
 ### Engineering
 - **Next.js 16.4** (App Router, Cache Components, Turbopack), React 19, Tailwind v4, TypeScript strict.
@@ -107,7 +115,7 @@ npm run dev                    # http://localhost:3000
   - A trigger that logs application status changes to events and the outbox.
 - `supabase/seed.sql` is generated from the TypeScript seed.
 - Verified: `tsc`, `eslint` and `vitest` (10/10) pass, and `next build` pre-renders 86 pages. A headless Chrome walkthrough (onboarding → matches → save → plan → detail, desktop + mobile) ran with no console errors and no mobile horizontal overflow.
-- The SQL files parse with the real Postgres parser. They have **not yet been applied to a live database**, so run `supabase db push` first thing.
+- Migrations and seed are applied to the project's Supabase database. Public catalog reads, private-table protection and blocked anonymous writes were verified with the public key. Signed-in flows are not yet tested.
 
 ### Code map
 ```
@@ -117,7 +125,8 @@ src/lib/recommendation/  ranking strategy + match service
 src/lib/funding/         exchange rates (port + static adapter), funding plan + loan strategies
 src/lib/catalog/         seed data, repository (seed / Supabase / fallback), cached queries
 src/lib/store/           local stores, Supabase session + sync, consent, matches hook
-src/components/three/    Globe (lazy + fallback), GlobeScene, land-points
+src/components/          OpportunityDetail, YourEligibility, ui/ (nav, footer, cards, country picker, theme toggle)
+src/components/three/    Globe (capability check + CSS fallback), GlobeScene (globe, arcs, cap + diploma), land-points
 src/app/                 pages: / onboarding matches explore scholarships/[slug] loans/[slug]
                          universities/[slug]/[program] plan saved login auth/callback api/v1/match
 supabase/                migrations, seed.sql, config.toml
@@ -128,7 +137,8 @@ supabase/                migrations, seed.sql, config.toml
 ## 🔜 What still needs to be done
 
 ### Before Prototype 1 (30 Nov) — P0 gaps
-- [ ] **Add Supabase keys**, run the migration and seed, and test sign-in, profile sync and saved-item sync end to end.
+- [x] Supabase keys added, migrations + seed applied, catalog served from Supabase.
+- [ ] Test sign-in, profile sync and saved-item sync end to end (after deploying, with the real domain's `/auth/callback` added in Supabase).
 - [ ] **Real data:** Tanisha's verified spreadsheet for 2–3 target countries, aiming for 100–300 opportunities and ~20 universities.
   - The current 26 opportunities are *sample data*: real programme names, but approximate amounts and deadlines.
 - [ ] **CSV import** for editors (§3.6). For now, edit `seed-data.ts` and run `npm run seed:sql`.
@@ -168,18 +178,17 @@ supabase/                migrations, seed.sql, config.toml
 4. **Shareable match card:** an Open Graph image like "I qualify for 13 scholarships worth ₹2.8 Cr" for WhatsApp and Instagram, a natural growth loop.
 5. **Parent view link:** read-only sharing so parents can see the plan and cost, without a full guardian account.
 
-### Make it visually spectacular (still fast)
-6. **Scroll-driven hero:** the camera flies from the globe into the student's destination city as they scroll, using drei `ScrollControls`.
-7. **Matches "constellation" view:** each match is a star sized by value and coloured by verdict. Tap a star to open the card. It's a fun alternative to the grid.
-8. **Funding plan as a 3D "money stack":** coins fill the cost tower as scholarships are toggled.
-9. **View Transitions API** for card → detail morphs (React 19 + Next support it).
-10. **Micro-sound and haptics** (opt-in) on save and confetti, using `navigator.vibrate` on Android.
-11. **Light theme** with automatic switching, for bright outdoor phone use.
+### Keep it simple and clear
+6. **One-tap answers:** answer a missing question right on the matches page instead of reopening onboarding.
+7. **"What to do next" box** on the matches page: the single nearest deadline and the one document to prepare.
+8. **Plain-language glossary** tooltips for terms like "cosigner", "collateral" and "need-based".
+9. **Hindi and other languages** once the target countries are fixed.
+10. **Globe in onboarding:** draw arcs live as the student picks destinations (the globe component already supports it).
 
 ### Build trust
-12. A **"Verified by our team" badge** with the verifier's name and date, plus **community tips** from past winners. Moderate these.
-13. **Essay helper** (AI, P1+). It only gives guidance on the student's own draft and never writes the essay, which keeps it honest.
+11. A **"Verified by our team" badge** with the verifier's name and date, plus **community tips** from past winners. Moderate these.
+12. **Essay helper** (AI, P1+). It only gives guidance on the student's own draft and never writes the essay, which keeps it honest.
 
 ### Performance guardrails
-- Keep the 3D bundle lazy (it already is). Measure Core Web Vitals on a real low-end Android over 3G.
-- Pause the WebGL frame loop when the hero scrolls out of view.
+- Measure Core Web Vitals on a real low-end Android over 3G once deployed.
+- three.js loads only on the home page, only on capable devices, after the page is interactive. Pause the render loop when the hero scrolls out of view if it shows up in profiling.

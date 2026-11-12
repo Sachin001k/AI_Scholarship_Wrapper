@@ -1,19 +1,19 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "motion/react";
-import { Check, Landmark, PiggyBank } from "lucide-react";
 import clsx from "clsx";
 import type { Opportunity, Program, University } from "@/lib/domain/types";
-import { COUNTRIES, flag } from "@/lib/domain/reference";
+import { COUNTRIES } from "@/lib/domain/reference";
 import { formatMoney } from "@/lib/domain/values";
 import { EligibilityEngine } from "@/lib/eligibility/engine";
 import { LOAN_STRATEGIES, applicableTo, buildFundingPlan } from "@/lib/funding/plan";
-import { defaultRates, hasRate } from "@/lib/funding/fx";
+import { convert, defaultRates, hasRate } from "@/lib/funding/fx";
 import { profileStore } from "@/lib/store/stores";
 import { VerdictBadge, opportunityHref } from "@/components/ui/opportunity";
 
 const engine = new EligibilityEngine();
+const VERDICT_RANK = { ELIGIBLE: 0, NEEDS_INFO: 1, NEAR_MISS: 2 } as const;
+const usd = (o: Opportunity) => (o.award?.amount ? convert(o.award.amount, "USD").amount : 0);
 const CURRENCIES = [...new Set(COUNTRIES.map((c) => c.currency))].filter(hasRate).sort();
 
 export default function PlanClient({
@@ -41,24 +41,25 @@ export default function PlanClient({
     if (profile?.currency) setCurrency(profile.currency);
   }, [profile?.currency]);
 
-  const program = programs.find((p) => p.id === programId)!;
-  const university = universities.find((u) => u.id === program?.universityId)!;
+  const program = programs.find((p) => p.id === programId);
+  const university = universities.find((u) => u.id === program?.universityId);
 
-  // Scholarships that could apply to this program, with the student's verdict.
+  // Scholarships that could apply to this program, with the student's verdict; eligible + biggest first.
   const candidates = useMemo(() => {
-    if (!program) return [];
+    if (!program || !university) return [];
     return opportunities
       .filter((o) => o.kind === "SCHOLARSHIP" && applicableTo(o, program, university))
       .map((o) => {
         const r = profile ? engine.evaluate(profile, o) : null;
         return { o, verdict: r && r.failedLeafCount <= 1 ? r.verdict : null };
       })
-      .filter((x) => !profile || x.verdict);
+      .filter((x) => !profile || x.verdict)
+      .sort((a, b) => VERDICT_RANK[a.verdict ?? "NEAR_MISS"] - VERDICT_RANK[b.verdict ?? "NEAR_MISS"] || usd(b.o) - usd(a.o));
   }, [opportunities, program, university, profile]);
 
   const loans = useMemo(
     () =>
-      program
+      program && university
         ? opportunities.filter(
             (o) =>
               o.kind === "LOAN" &&
@@ -69,14 +70,14 @@ export default function PlanClient({
     [opportunities, program, university, profile],
   );
 
-  // Default selection: the single best eligible award (awards rarely stack).
+  // Default: the single best eligible award (big awards rarely stack).
   useEffect(() => {
     const best = candidates.find((c) => c.verdict === "ELIGIBLE") ?? candidates[0];
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset picks when the program changes
     setPicked(best ? { [best.o.id]: true } : {});
   }, [programId, candidates.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!program) return null;
+  if (!program || !university) return null;
   const strategy = LOAN_STRATEGIES.find((s) => s.id === strategyId)!;
   const plan = buildFundingPlan({
     program,
@@ -85,171 +86,149 @@ export default function PlanClient({
     currency,
     strategy,
   });
-  const bestLoan = plan.loans[0];
-  const loanCover = bestLoan?.covers ?? 0;
+  const loanCover = plan.loans[0]?.covers ?? 0;
   const remaining = Math.max(0, plan.gap - loanCover);
   const pct = (n: number) => (plan.cost.total ? (n / plan.cost.total) * 100 : 0);
   const fm = (n: number) => formatMoney({ amount: n, currency });
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
-      <h1 className="font-display text-4xl font-bold sm:text-5xl">
-        Your <span className="text-gradient">funding plan</span>
-      </h1>
-      <p className="mt-2 max-w-2xl text-muted">Total cost − scholarships = your gap. Then we suggest loans that could cover the rest.</p>
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <h1 className="text-3xl font-semibold tracking-tight">Funding plan</h1>
+      <p className="mt-2 text-muted">Pick a program to see its full cost, what scholarships could cover, and loan options for the rest.</p>
 
-      {/* Controls */}
-      <div className="glass mt-8 grid gap-3 rounded-2xl p-4 sm:grid-cols-[1fr_auto]">
-        <label className="text-sm">
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+        <label className="flex-1 text-sm">
           <span className="mb-1 block text-muted">Program</span>
-          <select value={programId} onChange={(e) => setProgramId(e.target.value)} className="w-full rounded-xl bg-white/5 px-3 py-2.5 [&>optgroup]:bg-ink [&>option]:bg-ink">
+          <select value={programId} onChange={(e) => setProgramId(e.target.value)} className="input">
             {universities.map((u) => (
-              <optgroup key={u.id} label={`${flag(u.country)} ${u.name}`}>
+              <optgroup key={u.id} label={u.name}>
                 {programs
                   .filter((p) => p.universityId === u.id)
                   .map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
                   ))}
               </optgroup>
             ))}
           </select>
         </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-muted">Show in</span>
-          <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full rounded-xl bg-white/5 px-3 py-2.5 [&>option]:bg-ink">
+        <label className="text-sm sm:w-32">
+          <span className="mb-1 block text-muted">Currency</span>
+          <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input">
             {CURRENCIES.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
           </select>
         </label>
       </div>
 
-      {/* The big picture */}
-      <section className="glass mt-6 rounded-[2rem] p-6 sm:p-10">
-        <div className="grid gap-6 sm:grid-cols-4">
-          <Big label={`Total cost (${plan.years} yr${plan.years > 1 ? "s" : ""})`} value={fm(plan.cost.total)} />
-          <Big label="Scholarships" value={`− ${fm(plan.scholarshipTotal)}`} cls="text-ok" />
-          <Big label="Loan could cover" value={`− ${fm(loanCover)}`} cls="text-cyan" />
-          <Big label="Still to find" value={fm(remaining)} cls={remaining > 0 ? "text-miss" : "text-ok"} />
+      {/* Summary */}
+      <section className="card mt-6 p-6">
+        <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+          <Stat label={`Total cost · ${plan.years} yr${plan.years > 1 ? "s" : ""}`} value={fm(plan.cost.total)} />
+          <Stat label="Scholarships" value={`− ${fm(plan.scholarshipTotal)}`} cls="text-ok" />
+          <Stat label="Loan could cover" value={`− ${fm(loanCover)}`} cls="text-brand" />
+          <Stat label="Still to find" value={fm(remaining)} cls={remaining > 0 ? "text-miss" : "text-ok"} />
         </div>
-        <div className="mt-8 flex h-6 overflow-hidden rounded-full bg-white/10" role="img" aria-label="Funding breakdown">
-          <motion.div className="h-full bg-ok" animate={{ width: `${pct(plan.scholarshipTotal)}%` }} transition={{ type: "spring", stiffness: 80, damping: 18 }} />
-          <motion.div className="h-full bg-cyan" animate={{ width: `${pct(loanCover)}%` }} transition={{ type: "spring", stiffness: 80, damping: 18 }} />
-          <motion.div className="h-full bg-miss/70" animate={{ width: `${pct(remaining)}%` }} transition={{ type: "spring", stiffness: 80, damping: 18 }} />
+        <div className="mt-6 flex h-3 overflow-hidden rounded-full bg-subtle" role="img" aria-label="Funding breakdown">
+          <div className="h-full bg-ok transition-all" style={{ width: `${pct(plan.scholarshipTotal)}%` }} />
+          <div className="h-full bg-brand transition-all" style={{ width: `${pct(loanCover)}%` }} />
+          <div className="h-full bg-miss/60 transition-all" style={{ width: `${pct(remaining)}%` }} />
         </div>
-        <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
-          <Legend c="bg-ok" l="Scholarships" /> <Legend c="bg-cyan" l="Top loan suggestion" /> <Legend c="bg-miss/70" l="Remaining gap" />
-          <span className="ml-auto">
-            Tuition {fm(plan.cost.tuition)} · Fees {fm(plan.cost.fees)} · Living {fm(plan.cost.living)} · FX rates of {defaultRates.rateDate}
-          </span>
-        </div>
+        <p className="mt-3 text-xs text-muted">
+          Tuition {fm(plan.cost.tuition)} · fees {fm(plan.cost.fees)} · living {fm(plan.cost.living)} · exchange rates of {defaultRates.rateDate}
+        </p>
       </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        {/* Scholarships */}
-        <section className="glass rounded-3xl p-6">
-          <h2 className="flex items-center gap-2 font-display text-xl font-semibold">
-            <PiggyBank className="h-5 w-5 text-ok" /> Scholarships for this program
-          </h2>
-          <p className="mt-1 text-sm text-muted">Tap to include. Most big awards can&apos;t be combined — check each provider&apos;s rules.</p>
+        <section className="card p-6">
+          <h2 className="font-semibold">Scholarships</h2>
+          <p className="mt-1 text-sm text-muted">Tick the ones to include. Big awards usually can&apos;t be combined.</p>
           {!profile && (
-            <p className="mt-3 rounded-xl bg-warn/10 p-3 text-sm text-warn">
-              <Link href="/onboarding" className="underline">Add your profile</Link> to see only what you&apos;re eligible for.
+            <p className="mt-3 rounded-lg bg-warn-soft p-3 text-sm text-warn">
+              <Link href="/onboarding" className="font-medium underline">
+                Answer a few questions
+              </Link>{" "}
+              to see only the ones you qualify for.
             </p>
           )}
           <ul className="mt-4 space-y-2">
-            {candidates.length === 0 && <li className="text-sm text-muted">No matching scholarships for this program yet.</li>}
+            {candidates.length === 0 && <li className="text-sm text-muted">No scholarships for this program yet.</li>}
             {candidates.map(({ o, verdict }) => {
-              const on = !!picked[o.id];
               const line = plan.scholarships.find((s) => s.opportunity.id === o.id);
               return (
                 <li key={o.id}>
-                  <button
-                    type="button"
-                    onClick={() => setPicked((p) => ({ ...p, [o.id]: !p[o.id] }))}
-                    aria-pressed={on}
-                    className={clsx("flex w-full items-center gap-3 rounded-2xl p-3 text-left ring-1 transition-colors", on ? "bg-ok/10 ring-ok/40" : "bg-white/5 ring-white/10 hover:bg-white/10")}
-                  >
-                    <span className={clsx("grid h-6 w-6 shrink-0 place-items-center rounded-md ring-1", on ? "bg-ok text-ink ring-ok" : "ring-white/30")}>
-                      {on && <Check className="h-4 w-4" />}
-                    </span>
+                  <label className={clsx("flex cursor-pointer items-start gap-3 rounded-lg border p-3", picked[o.id] ? "border-brand bg-brand-soft" : "border-line hover:bg-subtle")}>
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 accent-[#1d4ed8]"
+                      checked={!!picked[o.id]}
+                      onChange={() => setPicked((p) => ({ ...p, [o.id]: !p[o.id] }))}
+                    />
                     <span className="flex-1">
                       <span className="block text-sm font-medium">{o.title}</span>
-                      <span className="text-xs text-muted">{o.award?.coverage}</span>
+                      {picked[o.id] && line ? <span className="text-sm text-ok">{fm(line.amount)}</span> : <span className="text-xs text-muted">{o.award?.coverage}</span>}
                     </span>
-                    <span className="text-right">
-                      {verdict && <VerdictBadge verdict={verdict} />}
-                      {on && line && <span className="mt-1 block text-sm font-semibold text-ok">{fm(line.amount)}</span>}
-                    </span>
-                  </button>
+                    {verdict && <VerdictBadge verdict={verdict} />}
+                  </label>
                 </li>
               );
             })}
           </ul>
         </section>
 
-        {/* Loans */}
-        <section className="glass rounded-3xl p-6">
+        <section className="card p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2 font-display text-xl font-semibold">
-              <Landmark className="h-5 w-5 text-cyan" /> Loans for the gap
-            </h2>
-            <div className="flex gap-1 rounded-full bg-white/5 p-1 text-xs">
+            <h2 className="font-semibold">Loans for the rest</h2>
+            <select aria-label="Sort loans" value={strategyId} onChange={(e) => setStrategyId(e.target.value)} className="input w-auto py-1.5 text-sm">
               {LOAN_STRATEGIES.map((s) => (
-                <button key={s.id} onClick={() => setStrategyId(s.id)} aria-pressed={s.id === strategyId} className={clsx("rounded-full px-3 py-1.5", s.id === strategyId ? "bg-cyan/30 text-white" : "text-muted")}>
+                <option key={s.id} value={s.id}>
                   {s.label}
-                </button>
+                </option>
               ))}
-            </div>
+            </select>
           </div>
           {plan.gap === 0 ? (
-            <p className="mt-6 text-ok">🎉 Your scholarships cover the whole cost. No loan needed!</p>
+            <p className="mt-4 text-sm text-ok">Your scholarships cover the whole cost — no loan needed.</p>
           ) : (
-            <ul className="mt-4 space-y-3">
-              {plan.loans.length === 0 && <li className="text-sm text-muted">No loans in our catalog fit this program and nationality yet.</li>}
-              {plan.loans.map((l, i) => (
-                <motion.li key={l.opportunity.id} layout className={clsx("rounded-2xl p-4 ring-1", i === 0 ? "bg-cyan/10 ring-cyan/40" : "bg-white/5 ring-white/10")}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <Link href={opportunityHref(l.opportunity)} className="font-medium hover:underline">{l.opportunity.title}</Link>
-                      <p className="text-xs text-muted">
-                        {l.opportunity.loanTerms!.rateMinPct}–{l.opportunity.loanTerms!.rateMaxPct}% ·{" "}
-                        {l.opportunity.loanTerms!.cosignerRequired ? "cosigner" : "no cosigner"} ·{" "}
-                        {l.opportunity.loanTerms!.collateralRequired ? "collateral" : "no collateral"}
-                      </p>
+            <ul className="mt-4 space-y-2">
+              {plan.loans.length === 0 && <li className="text-sm text-muted">No loans in our list fit this program yet.</li>}
+              {plan.loans.map((l, i) => {
+                const t = l.opportunity.loanTerms!;
+                return (
+                  <li key={l.opportunity.id} className={clsx("rounded-lg border p-3", i === 0 ? "border-brand" : "border-line")}>
+                    <div className="flex items-start justify-between gap-3">
+                      <Link href={opportunityHref(l.opportunity)} className="text-sm font-medium hover:text-brand">
+                        {l.opportunity.title}
+                      </Link>
+                      {i === 0 && <span className="badge bg-brand-soft text-brand">Best fit</span>}
                     </div>
-                    {i === 0 && <span className="rounded-full bg-cyan/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-cyan">Top pick</span>}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                    <span>Covers <strong>{fm(l.covers)}</strong></span>
-                    <span className="text-muted">≈ {fm(l.monthly)}/month over 10 yrs (at {l.opportunity.loanTerms!.rateMinPct}%)</span>
-                  </div>
-                </motion.li>
-              ))}
+                    <p className="mt-1 text-xs text-muted">
+                      {t.rateMinPct}–{t.rateMaxPct}% · {t.cosignerRequired ? "cosigner needed" : "no cosigner"} · {t.collateralRequired ? "collateral needed" : "no collateral"}
+                    </p>
+                    <p className="mt-2 text-sm">
+                      Covers <strong>{fm(l.covers)}</strong> <span className="text-muted">· about {fm(l.monthly)}/month over 10 years</span>
+                    </p>
+                  </li>
+                );
+              })}
             </ul>
           )}
-          <p className="mt-4 text-xs text-muted">Estimates only. Real rates depend on the lender&apos;s assessment.</p>
+          <p className="mt-4 text-xs text-muted">Estimates only. Real rates depend on the lender.</p>
         </section>
       </div>
     </div>
   );
 }
 
-function Big({ label, value, cls = "text-white" }: { label: string; value: string; cls?: string }) {
+function Stat({ label, value, cls = "text-ink" }: { label: string; value: string; cls?: string }) {
   return (
     <div>
-      <p className="text-xs uppercase tracking-wider text-muted">{label}</p>
-      <motion.p key={value} initial={{ opacity: 0.4, y: 4 }} animate={{ opacity: 1, y: 0 }} className={clsx("mt-1 font-display text-2xl font-bold sm:text-3xl", cls)}>
-        {value}
-      </motion.p>
+      <p className="text-xs text-muted">{label}</p>
+      <p className={clsx("mt-1 text-xl font-semibold", cls)}>{value}</p>
     </div>
-  );
-}
-
-function Legend({ c, l }: { c: string; l: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={clsx("h-2.5 w-2.5 rounded-full", c)} /> {l}
-    </span>
   );
 }

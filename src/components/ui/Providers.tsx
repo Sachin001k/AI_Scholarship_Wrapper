@@ -1,10 +1,9 @@
 "use client";
-import { MotionConfig } from "motion/react";
 import { useEffect, useRef } from "react";
 import { pullFromSupabase, pushSaved, useUser } from "@/lib/store/session";
 import { savedStore } from "@/lib/store/stores";
 
-/** Client-wide providers: motion settings + Supabase sync once signed in. */
+/** Client-wide provider: syncs local data with Supabase once signed in. */
 export default function Providers({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
   const synced = useRef<string | null>(null);
@@ -24,5 +23,5 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     }
   }, [saved, user]);
 
-  return <MotionConfig reducedMotion="user">{children}</MotionConfig>;
+  return <>{children}</>;
 }
